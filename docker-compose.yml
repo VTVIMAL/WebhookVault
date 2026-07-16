@@ -1,0 +1,49 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    ports:
+      - "8001:8000"
+    volumes:
+      - .:/app
+    environment:
+      DATABASE_URL: postgresql+psycopg://webhookvault:webhookvault@postgres:5432/webhookvault
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      - postgres
+      - redis
+
+
+  worker:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile 
+    command: celery -A app.workers.celery_app:celery_app worker --loglevel=info
+    volumes:
+      - .:/app 
+    environment:
+      DATABASE_URL: postgresql+psycopg://webhookvault:webhookvault@postgres:5432/webhookvault
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      - postgres
+      - redis
+
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: webhookvault
+      POSTGRES_PASSWORD: webhookvault
+      POSTGRES_DB: webhookvault
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+
+
+volumes:
+  postgres_data:

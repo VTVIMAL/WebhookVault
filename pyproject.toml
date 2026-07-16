@@ -1,0 +1,56 @@
+[build-system]
+requires = ["hatchling>=1.25.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "webhookvault"
+version = "0.1.0"
+description = "Reliable webhook delivery infrastructure"
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "MIT" }
+authors = [
+  { name = "Vimal VT" }
+]
+
+dependencies = [
+  "fastapi>=0.116.0",
+  "uvicorn[standard]>=0.35.0",
+  "sqlalchemy>=2.0.43",
+  "alembic>=1.16.4",
+  "psycopg[binary]>=3.2.9",
+  "pydantic-settings>=2.10.1",
+  "celery>=5.5.3",
+  "redis>=6.2.0",
+]
+
+[dependency-groups]
+dev = [
+  "pytest>=8.4.1",
+  "pytest-asyncio>=1.1.0",
+  "pytest-cov>=6.2.1",
+  "ruff>=0.12.5",
+  "mypy>=1.17.1",
+  "pre-commit>=4.2.0",
+  "httpx2>=0.0.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = false
+warn_unused_configs = true
+disallow_untyped_defs = false
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
