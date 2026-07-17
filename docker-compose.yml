@@ -32,6 +32,8 @@ services:
 
   postgres:
     image: postgres:17
+    ports:
+      - "5433:5432"
     environment:
       POSTGRES_USER: webhookvault
       POSTGRES_PASSWORD: webhookvault
