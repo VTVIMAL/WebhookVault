@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import UTC, datetime
 
 from sqlalchemy import Boolean, DateTime, String
 from sqlalchemy.orm import Mapped, mapped_column
@@ -14,5 +14,7 @@ class Webhook(Base):
     target_url: Mapped[str] = mapped_column(String(2048), nullable=False)
     signing_secret: Mapped[str | None] = mapped_column(String(255), nullable=True)
     is_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now(UTC), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now(UTC), nullable=False)
+
+    
