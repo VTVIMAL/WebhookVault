@@ -27,6 +27,16 @@ def override_get_db() -> Generator[Session, None, None]:
     finally:
         db.close()
 
+@pytest.fixture
+def db_session() -> Generator[Session, None, None]:
+    Base.metadata.create_all(bind=engine)
+    db = TestingSessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+        Base.metadata.drop_all(bind=engine)
+
 
 @pytest.fixture
 def client() -> Generator[TestClient, None, None]:
