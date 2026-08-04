@@ -26,3 +26,7 @@ class WebhookUpdate(BaseModel):
     target_url: HttpUrl | None = None
     signing_secret: str | None = None
     is_enabled: bool | None = None
+
+
+class WebhookDeliveryRequest(BaseModel):
+    payload: dict[str, object]

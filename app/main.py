@@ -1,12 +1,14 @@
+import json
+
 from fastapi import Depends, FastAPI, HTTPException, Response
 from sqlalchemy.orm import Session
 
 from app.core.settings import get_settings
 from app.db.session import get_db
 from app.models.webhook import Webhook
-from app.schemas.webhook import WebhookCreate, WebhookRead, WebhookUpdate
+from app.schemas.webhook import WebhookCreate, WebhookDeliveryRequest, WebhookRead, WebhookUpdate
 from app.services.webhook_service import create_webhook, get_webhook_by_id, list_webhooks, update_webhook, delete_webhook
-
+from app.workers.tasks import deliver_webhook_task
 
 def create_app() -> FastAPI:
     settings = get_settings()
@@ -52,6 +54,27 @@ def create_app() -> FastAPI:
         if not deleted:
             raise HTTPException(status_code=404, detail="Webhook not found")
         return Response(status_code=204)
+
+    @app.post("/webhooks/{webhook_id}/deliver")
+    def deliver_webhook_endpoint(
+        webhook_id: int,
+        payload: WebhookDeliveryRequest,
+        db: Session = Depends(get_db),
+    ) -> dict[str, int | str]:
+        webhook = get_webhook_by_id(db, webhook_id)
+        if webhook is None:
+            raise HTTPException(status_code=404, detail="Webhook not found")
+
+        task = deliver_webhook_task.delay(
+            webhook_id,
+            json.dumps(payload.payload),
+        )
+
+        return {
+            "task_id": task.id,
+            "webhook_id": webhook_id,
+            "status": "queued",
+        }
 
     
     return app

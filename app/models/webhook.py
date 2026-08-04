@@ -19,8 +19,16 @@ class Webhook(Base):
     target_url: Mapped[str] = mapped_column(String(2048), nullable=False)
     signing_secret: Mapped[str | None] = mapped_column(String(255), nullable=True)
     is_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), 
+        default=lambda: datetime.now(UTC), 
+        nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), 
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+        nullable=False
+        )
     delivery_attempts: Mapped[list["WebhookDeliveryAttempt"]] = relationship(
         back_populates="webhook",
         cascade="all, delete-orphan",

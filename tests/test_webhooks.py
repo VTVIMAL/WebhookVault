@@ -1,5 +1,7 @@
 from fastapi.testclient import TestClient
 
+from unittest.mock import Mock, patch
+
 
 def test_create_webhook_returns_created_webhook(client: TestClient) -> None:
     payload = {
@@ -161,6 +163,58 @@ def test_delete_webhook_returns_204_and_removes_webhook(client: TestClient) -> N
 
 def test_delete_webhook_returns_404_when_missing(client: TestClient) -> None:
     response = client.delete("/webhooks/99999")
+
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Webhook not found"}
+
+
+def test_deliver_webhook_endpoint_queues_task(client: TestClient) -> None:
+    create_payload = {
+        "name": "Payments Webhook",
+        "target_url": "https://example.com/webhooks/payments",
+        "signing_secret": "secret-one",
+        "is_enabled": True,
+    }
+
+    create_response = client.post("/webhooks", json=create_payload)
+    webhook_id = create_response.json()["id"]
+
+
+    mocked_task = Mock()
+    mocked_task.id = "task-123"
+
+    with patch("app.main.deliver_webhook_task.delay", return_value=mocked_task) as mock_delay:
+        response = client.post(
+            f"/webhooks/{webhook_id}/deliver",
+            json={
+                "payload": {
+                    "event": "payment.succeeded",
+                    "amount": 1000,
+                }
+            },
+        )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "task_id": "task-123",
+        "webhook_id": webhook_id,
+        "status": "queued",
+    }
+    mock_delay.assert_called_once()
+
+
+def test_deliver_webhook_endpoint_returns_404_when_webhook_missing(
+    client: TestClient,
+) -> None:
+    response = client.post(
+        "/webhooks/99999/deliver",
+        json={
+            "payload": {
+                "event": "payment.succeeded",
+                "amount": 1000,
+            }
+        },
+    )
 
     assert response.status_code == 404
     assert response.json() == {"detail": "Webhook not found"}
