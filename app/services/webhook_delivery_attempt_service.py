@@ -1,3 +1,4 @@
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.models.webhook_delivery_attempt import WebhookDeliveryAttempt
@@ -7,13 +8,12 @@ def create_delivery_attempt(
     db: Session,
     webhook_id: int,
     payload: str,
-    attempt_number: int,
     status: str,
 ) -> WebhookDeliveryAttempt:
     delivery_attempt = WebhookDeliveryAttempt(
         webhook_id=webhook_id,
         payload=payload,
-        attempt_number=attempt_number,
+        attempt_number=get_next_attempt_number(db, webhook_id),
         status=status,
     )
     db.add(delivery_attempt)
@@ -56,3 +56,16 @@ def mark_delivery_attempt_failed(
     db.commit()
     db.refresh(delivery_attempt)
     return delivery_attempt
+
+
+def get_next_attempt_number(db: Session, webhook_id: int) -> int:
+    max_attempt_number = (
+        db.query(func.max(WebhookDeliveryAttempt.attempt_number))
+        .filter(WebhookDeliveryAttempt.webhook_id == webhook_id)
+        .scalar()
+    )
+
+    if max_attempt_number is None:
+        return 1
+
+    return max_attempt_number + 1

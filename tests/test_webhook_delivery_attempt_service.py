@@ -1,3 +1,4 @@
+from os import name
 from sqlalchemy.orm import Session
 
 from app.models import webhook
@@ -25,7 +26,6 @@ def test_create_delivery_attempt_persists_attempt(db_session: Session) -> None:
         db=db_session,
         webhook_id=webhook.id,
         payload='{"event":"payment.succeeded"}',
-        attempt_number=1,
         status="pending",
     )
 
@@ -54,7 +54,6 @@ def test_mark_delivery_attempt_succeeded_updates_attempt(db_session: Session) ->
         db=db_session,
         webhook_id=webhook.id,
         payload='{"event":"payment.succeeded"}',
-        attempt_number=1,
         status="pending",
     )
 
@@ -88,7 +87,6 @@ def test_mark_delivery_attempt_failed_updates_attempt(db_session: Session) -> No
         db=db_session,
         webhook_id=webhook.id,
         payload='{"event":"payment.failed"}',
-        attempt_number=1,
         status="pending",
     )
 
@@ -106,3 +104,33 @@ def test_mark_delivery_attempt_failed_updates_attempt(db_session: Session) -> No
     assert updated_attempt.response_status_code == 500
     assert updated_attempt.error_message == "Receiver returned 500"
     assert updated_attempt.updated_at >= original_updated_at
+
+
+def test_create_delivery_attempt_increments_attempt_number(db_session: Session) -> None:
+    webhook = Webhook(
+        name="Payments Webhook",
+        target_url="https://example.com/webhooks/payments",
+        signing_secret="secret-one",
+        is_enabled=True,
+    )
+    db_session.add(webhook)
+    db_session.commit()
+    db_session.refresh(webhook)
+
+
+    first_attempt = create_delivery_attempt(
+        db=db_session,
+        webhook_id=webhook.id,
+        payload='{"event": "payment.succeeded"}',
+        status="pending",
+    )
+
+    second_attempt = create_delivery_attempt(
+        db=db_session,
+        webhook_id=webhook.id,
+        payload='{"event":"payment.succeeded"}',
+        status="pending",
+    )
+
+    assert first_attempt.attempt_number == 1
+    assert second_attempt.attempt_number == 2

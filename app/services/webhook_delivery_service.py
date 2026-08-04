@@ -39,7 +39,6 @@ def deliver_webhook(
         db=db,
         webhook_id=webhook.id,
         payload=payload,
-        attempt_number=1,
         status="pending",
     )
 
