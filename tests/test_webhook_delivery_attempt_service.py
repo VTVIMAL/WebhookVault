@@ -5,6 +5,9 @@ from app.models import webhook
 from app.models.webhook import Webhook
 from app.services.webhook_delivery_attempt_service import (
     create_delivery_attempt, 
+    is_retryable_failure,
+    should_retry_attempt,
+    get_retry_delay_seconds,
     mark_delivery_attempt_failed,
     mark_delivery_attempt_succeeded
 )
@@ -134,3 +137,50 @@ def test_create_delivery_attempt_increments_attempt_number(db_session: Session) 
 
     assert first_attempt.attempt_number == 1
     assert second_attempt.attempt_number == 2
+
+
+def test_is_retryable_failure_returns_true_for_transport_failure() -> None:
+    assert is_retryable_failure(None) is True
+
+
+def test_is_retryable_failure_returns_true_for_5xx() -> None:
+    assert is_retryable_failure(500) is True
+    assert is_retryable_failure(503) is True
+
+
+def test_is_retryable_failure_returns_false_for_2xx_and_4xx() -> None:
+    assert is_retryable_failure(200) is False
+    assert is_retryable_failure(400) is False
+    assert is_retryable_failure(404) is False
+
+
+def test_get_retry_delay_seconds_for_first_attempt() -> None:
+    assert get_retry_delay_seconds(1) == 60
+
+
+def test_get_retry_delay_seconds_for_second_attempt() -> None:
+    assert get_retry_delay_seconds(2) == 300
+
+
+def test_get_retry_delay_seconds_for_third_attempt_and_beyond() -> None:
+    assert get_retry_delay_seconds(3) == 900
+    assert get_retry_delay_seconds(10) == 900
+
+
+def test_should_retry_attempt_returns_true_for_retryable_first_attempt() -> None:
+    assert should_retry_attempt(1, 500) is True
+    assert should_retry_attempt(1, None) is True
+
+
+def test_should_retry_attempt_returns_true_for_retryable_second_attempt() -> None:
+    assert should_retry_attempt(2, 503) is True
+
+
+def test_should_retry_attempt_returns_false_for_third_attempt() -> None:
+    assert should_retry_attempt(3, 500) is False
+    assert should_retry_attempt(3, None) is False
+
+
+def test_should_retry_attempt_returns_false_for_non_retryable_failure() -> None:
+    assert should_retry_attempt(1, 400) is False
+    assert should_retry_attempt(2, 404) is False

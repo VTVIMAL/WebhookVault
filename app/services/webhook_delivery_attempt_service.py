@@ -69,3 +69,29 @@ def get_next_attempt_number(db: Session, webhook_id: int) -> int:
         return 1
 
     return max_attempt_number + 1
+
+
+def is_retryable_failure(response_status_code: int | None) -> bool:
+    if response_status_code is None:
+        return True
+
+    return 500 <= response_status_code < 600
+
+
+def get_retry_delay_seconds(attempt_number: int) -> int:
+    if attempt_number <= 1:
+        return 60
+    if attempt_number == 2:
+        return 300
+    return 900
+
+
+
+MAX_DELIVERY_ATTEMPTS = 3
+
+
+def should_retry_attempt(attempt_number: int, response_status_code: int | None) -> bool:
+    if attempt_number >= MAX_DELIVERY_ATTEMPTS:
+        return False
+
+    return is_retryable_failure(response_status_code)

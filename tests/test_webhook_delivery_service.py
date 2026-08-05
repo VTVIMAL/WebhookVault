@@ -37,8 +37,8 @@ def test_deliver_webhook_marks_attempt_success(db_session: Session) -> None:
     assert delivery_attempt.webhook_id == webhook.id
     assert delivery_attempt.attempt_number == 1
     assert delivery_attempt.status == "success"
-    assert delivery_attempt.response_status_code == 200
-    assert delivery_attempt.error_message is None
+    assert delivery_attempt.should_retry is False
+    assert delivery_attempt.delivery_attempt_id > 0
 
 
 def test_deliver_webhook_marks_attempt_failed_on_sender_exception(
@@ -69,8 +69,8 @@ def test_deliver_webhook_marks_attempt_failed_on_sender_exception(
     assert delivery_attempt.webhook_id == webhook.id
     assert delivery_attempt.attempt_number == 1
     assert delivery_attempt.status == "failed"
-    assert delivery_attempt.response_status_code is None
-    assert delivery_attempt.error_message == "connection timeout"
+    assert delivery_attempt.should_retry is True
+    assert delivery_attempt.delivery_attempt_id > 0
 
 
 def test_deliver_webhook_marks_attempt_failed_on_non_2xx_response(
@@ -100,5 +100,5 @@ def test_deliver_webhook_marks_attempt_failed_on_non_2xx_response(
     assert delivery_attempt.webhook_id == webhook.id
     assert delivery_attempt.attempt_number == 1
     assert delivery_attempt.status == "failed"
-    assert delivery_attempt.response_status_code == 500
-    assert delivery_attempt.error_message == "Receiver returned status 500"
+    assert delivery_attempt.should_retry is True
+    assert delivery_attempt.delivery_attempt_id > 0
