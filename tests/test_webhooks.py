@@ -2,6 +2,11 @@ from fastapi.testclient import TestClient
 
 from unittest.mock import Mock, patch
 
+from pytest import Session
+
+from app.models import webhook
+from app.services.webhook_delivery_attempt_service import create_delivery_attempt
+
 
 def test_create_webhook_returns_created_webhook(client: TestClient) -> None:
     payload = {
@@ -218,3 +223,125 @@ def test_deliver_webhook_endpoint_returns_404_when_webhook_missing(
 
     assert response.status_code == 404
     assert response.json() == {"detail": "Webhook not found"}
+
+
+def test_list_webhook_attempts_returns_attempts_in_attempt_number_order(
+    client: TestClient,
+    db_session: Session,
+) -> None:
+    create_payload = {
+        "name": "Payments Webhook",
+        "target_url": "https://example.com/webhooks/payments",
+        "signing_secret": "secret-one",
+        "is_enabled": True,
+    }
+
+    create_response = client.post("/webhooks", json=create_payload)
+    webhook_id = create_response.json()["id"]
+
+    create_delivery_attempt(
+        db=db_session,
+        webhook_id=webhook_id,
+        payload='{"event":"payments.succeeded"}',
+        status="failed",
+    )
+    create_delivery_attempt(
+        db=db_session,
+        webhook_id=webhook_id,
+        payload='{"event":"payments.succeeded"}',
+        status="success",
+    )
+
+    response = client.get(f"/webhooks/{webhook_id}/attempts")
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert len(data) == 2
+    assert data[0]["attempt_number"] == 1
+    assert data[1]["attempt_number"] == 2
+    assert data[0]["webhook_id"] == webhook_id
+    assert data[1]["webhook_id"] == webhook_id
+
+
+def test_list_webhook_attempts_returns_404_when_webhook_missing(
+    client: TestClient,
+) -> None:
+    response = client.get("/webhooks/99999/attempts")
+
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Webhook not found"}
+
+
+def test_get_webhook_attempt_returns_attempt_detail(
+    client: TestClient,
+    db_session: Session,
+) -> None:
+    create_payload = {
+        "name": "Payments Webhook",
+        "target_url": "https://example.com/webhooks/payments",
+        "signing_secret": "secret-one",
+        "is_enabled": True,
+    }
+
+    create_response = client.post("/webhooks", json=create_payload)
+    webhook_id = create_response.json()["id"]
+
+    attempt = create_delivery_attempt(
+        db=db_session,
+        webhook_id=webhook_id,
+        payload='{"event":"payment.succeeded"}',
+        status="failed",
+    )
+
+    response = client.get(f"/webhooks/{webhook_id}/attempts/{attempt.id}")
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert data["id"] == attempt.id
+    assert data["webhook_id"] == webhook_id
+    assert data["attempt_number"] == 1
+    assert data["status"] == "failed"
+    assert data["payload"] == '{"event":"payment.succeeded"}'
+
+
+def test_get_webhook_attempt_returns_404_for_attempt_owned_by_another_webhook(
+    client: TestClient,
+    db_session: Session,
+) -> None:
+    first_webhook_response = client.post(
+        "/webhooks",
+        json={
+            "name": "Payments Webhook",
+            "target_url": "https://example.com/webhooks/payments",
+            "signing_secret": "secret-one",
+            "is_enabled": True,
+        },
+    )
+    first_webhook_id = first_webhook_response.json()["id"]
+
+    second_webhook_response = client.post(
+        "/webhooks",
+        json={
+            "name": "Orders Webhook",
+            "target_url": "https://example.com/webhooks/orders",
+            "signing_secret": "secret-two",
+            "is_enabled": True,
+        },
+    )
+    second_webhook_id= second_webhook_response.json()["id"]
+
+    attempt = create_delivery_attempt(
+        db=db_session,
+        webhook_id=second_webhook_id,
+        payload='{"event":"order.created"}',
+        status="failed",
+    )
+
+    response = client.get(f"/webhooks/{first_webhook_id}/attempts/{attempt.id}")
+
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Delivery attempt not found"}

@@ -95,3 +95,28 @@ def should_retry_attempt(attempt_number: int, response_status_code: int | None) 
         return False
 
     return is_retryable_failure(response_status_code)
+
+
+def list_delivery_attempts_for_webhook(
+    db: Session,
+    webhook_id: int,
+) -> list[WebhookDeliveryAttempt]:
+    return (
+        db.query(WebhookDeliveryAttempt)
+        .filter(WebhookDeliveryAttempt.webhook_id == webhook_id)
+        .order_by(WebhookDeliveryAttempt.attempt_number.asc())
+        .all()
+    )
+
+
+def get_delivery_attempt_for_webhook(
+    db: Session,
+    webhook_id: int,
+    attempt_id: int,
+) -> WebhookDeliveryAttempt | None:
+    return (
+        db.query(WebhookDeliveryAttempt)
+        .filter(WebhookDeliveryAttempt.id == attempt_id)
+        .filter(WebhookDeliveryAttempt.webhook_id == webhook_id)
+        .first()
+    )
