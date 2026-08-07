@@ -5,7 +5,6 @@ import httpx
 from sqlalchemy.orm import Session
 
 
-from app.models.webhook_delivery_attempt import WebhookDeliveryAttempt
 from app.services.webhook_delivery_attempt_service import (
     create_delivery_attempt,
     mark_delivery_attempt_failed,
@@ -13,6 +12,7 @@ from app.services.webhook_delivery_attempt_service import (
     should_retry_attempt,
 )
 from app.services.webhook_service import get_webhook_by_id
+from app.services.webhook_signing_service import generate_webhook_signature
 
 
 @dataclass
@@ -25,14 +25,14 @@ class DeliveryResult:
 
 
 
-HttpSender = Callable[[str, str], httpx.Response]
+HttpSender = Callable[[str, str, dict[str, str]], httpx.Response]
 
 
-def default_http_sender(url: str, payload: str) -> httpx.Response:
+def default_http_sender(url: str, payload: str, headers: dict[str, str]) -> httpx.Response:
     return httpx.post(
         url,
         content=payload,
-        headers={"Content-Type": "application/json"},
+        headers=headers,
         timeout=10.0,
     )
 
@@ -44,8 +44,16 @@ def deliver_webhook(
     http_sender: HttpSender = default_http_sender,
 ) -> DeliveryResult | None:
     webhook = get_webhook_by_id(db, webhook_id)
+
     if webhook is None:
         return None
+
+    headers = {"Content-Type": "application/json"}
+    if webhook.signing_secret:
+        headers["X-WebhookVault-Signature"] = generate_webhook_signature(
+            payload,
+            webhook.signing_secret,
+        )
 
     delivery_attempt = create_delivery_attempt(
         db=db,
@@ -54,8 +62,10 @@ def deliver_webhook(
         status="pending",
     )
 
+    headers["X-WebhookVault-Attempt-Number"] = str(delivery_attempt.attempt_number)
+
     try:
-        response = http_sender(webhook.target_url, payload)
+        response = http_sender(webhook.target_url, payload, headers)
     except Exception as exc:
         failed_attempt = mark_delivery_attempt_failed(
             db=db,
